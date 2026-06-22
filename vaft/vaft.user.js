@@ -59,8 +59,11 @@
         scope.AllSegmentsAreAdSegments = false;
     }
     let isActivelyStrippingAds = false;
+    let lastAdBlockBannerData = null;
+    let lastAdBlockBannerSummary = '';
     let localStorageHookFailed = false;
     const twitchWorkers = [];
+    let hookedTwitchWorkerCount = 0;
     const workerStringConflicts = [
         'twitch',
         'isVariantA'// TwitchNoSub
@@ -195,6 +198,7 @@
                 `;
                 super(URL.createObjectURL(new Blob([newBlobStr])), options);
                 twitchWorkers.push(this);
+                hookedTwitchWorkerCount++;
                 this.addEventListener('message', (e) => {
                     if (e.data.key == 'UpdateAdBlockBanner') {
                         updateAdblockBanner(e.data);
@@ -781,6 +785,17 @@
         setTimeout(monitorPlayerBuffering, PlayerBufferingDelay);
     }
     function updateAdblockBanner(data) {
+        lastAdBlockBannerData = {
+            hasAds: !!data.hasAds,
+            isMidroll: !!data.isMidroll,
+            isStrippingAdSegments: !!data.isStrippingAdSegments,
+            numStrippedAdSegments: data.numStrippedAdSegments || 0
+        };
+        const nextSummary = JSON.stringify(lastAdBlockBannerData);
+        if (nextSummary !== lastAdBlockBannerSummary) {
+            lastAdBlockBannerSummary = nextSummary;
+            console.log('VAFT ad state', lastAdBlockBannerData);
+        }
         const playerRootDiv = document.querySelector('.video-player');
         if (playerRootDiv != null) {
             let adBlockDiv = null;
@@ -914,6 +929,24 @@
     window.reloadTwitchPlayer = () => {
         doTwitchPlayerTask(false, true);
     };
+    window.vaftLocalStatus = () => ({
+        script: 'vaft',
+        version: ourTwitchAdSolutionsVersion,
+        installed: true,
+        host: window.location.hostname,
+        isMobileHost: window.location.hostname === 'm.twitch.tv',
+        supportedHost: window.location.hostname !== 'm.twitch.tv',
+        hookedTwitchWorkerCount,
+        workerInstances: twitchWorkers.length,
+        isActivelyStrippingAds,
+        lastAdBlockBannerData,
+        localStorageHookFailed,
+        hasDeviceId: !!GQLDeviceID,
+        hasClientVersion: !!ClientVersion,
+        hasClientSession: !!ClientSession,
+        hasClientIntegrityHeader: !!ClientIntegrityHeader,
+        hasAuthorizationHeader: !!AuthorizationHeader
+    });
     function postTwitchWorkerMessage(key, value) {
         twitchWorkers.forEach((worker) => {
             worker.postMessage({key: key, value: value});

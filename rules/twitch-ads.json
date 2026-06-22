@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||edge.ads.twitch.tv/ads",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "media",
+        "sub_frame",
+        "other"
+      ]
+    }
+  }
+]
