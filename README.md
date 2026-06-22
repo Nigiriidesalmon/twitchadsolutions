@@ -1,67 +1,112 @@
-Project archived on 2026-03-05. I'm no longer interested in Twitch. So much garbage content. Every time I go on the site it's worse.
+# Nigiriidesalmon Twitch VAFT
 
-# TwitchAdSolutions
+Chrome Manifest V3 extension fork based on the archived
+[`pixeltris/twitchadsolutions`](https://github.com/pixeltris/twitchadsolutions)
+project.
 
-This repo aims to provide multiple solutions for blocking Twitch ads.
+This fork packages the `vaft` script as a local unpacked Chrome extension, adds
+a Declarative Net Request rule for Twitch CSAI ad calls, and exposes small
+diagnostics helpers to verify whether the Twitch player worker was hooked.
 
-**Don't combine Twitch specific ad blockers.**
+## Espanol
 
-## Recommendations
+### Que es
 
-Proxies are the most reliable way of avoiding ads ([buffering / downtime info](full-list.md#proxy-issues)).
+`Nigiriidesalmon Twitch VAFT` es una version local en formato extension de
+Chrome MV3 basada en el script `vaft` del repo original archivado.
 
-- `TTV LOL PRO` - [chrome](https://chrome.google.com/webstore/detail/ttv-lol-pro/bpaoeijjlplfjbagceilcgbkcdjbomjd) / [firefox](https://addons.mozilla.org/addon/ttv-lol-pro/) / [code](https://github.com/younesaassila/ttv-lol-pro)
+Incluye:
 
-Alternatively:
+- Inyeccion de `vaft/vaft.user.js` en `document_start` y `MAIN world`.
+- Bloqueo local de llamadas CSAI a `edge.ads.twitch.tv/ads`.
+- Diagnostico desde consola con `vaftLocalStatus()`.
+- Indicador de estado de anuncios con logs `VAFT ad state`.
 
-- `Twitch Turbo` - https://www.twitch.tv/turbo
-- `Alternate Player for Twitch.tv` - [chrome](https://chrome.google.com/webstore/detail/alternate-player-for-twit/bhplkbgoehhhddaoolmakpocnenplmhf) / [firefox](https://addons.mozilla.org/en-US/firefox/addon/twitch_5/)
-- `Purple AdBlock` - [chrome](https://chrome.google.com/webstore/detail/purple-adblock/lkgcfobnmghhbhgekffaadadhmeoindg) / [firefox](https://addons.mozilla.org/en-US/firefox/addon/purpleadblock/) / [userscript](https://raw.githubusercontent.com/arthurbolsoni/Purple-adblock/refs/heads/main/platform/tampermonkey/dist/purpleadblocker.user.js) / [code](https://github.com/arthurbolsoni/Purple-adblock/)
-- `AdGuard Extra` - [chrome](https://chrome.google.com/webstore/detail/adguard-extra-beta/mglpocjcjbekdckiahfhagndealpkpbj) / [firefox](https://github.com/AdguardTeam/AdGuardExtra/#firefox) / [userscript](https://userscripts.adtidy.org/release/adguard-extra/1.0/adguard-extra.user.js)
-- `vaft` - see below
-- `TTV Ad Mute` - [firefox](https://addons.mozilla.org/en-US/firefox/addon/twitch-tv-ad-mute/) / [code](https://github.com/drj101687/ttv-ad-mute)
+### Instalacion en Chrome
 
-[Read this for a full list and descriptions.](full-list.md)
+1. Abre `chrome://extensions`.
+2. Activa `Developer mode`.
+3. Pulsa `Load unpacked`.
+4. Selecciona la carpeta del repo.
+5. Abre un directo en `https://www.twitch.tv`.
+6. Abre DevTools y busca `hookWorkerFetch (vaft)`.
+7. Ejecuta:
 
-[Also see this list maintained by @zGato.](https://github.com/zGato/ScrewTwitchAds)
+```js
+vaftLocalStatus()
+```
 
-## Scripts
+Si ves `installed: true` y `hookedTwitchWorkerCount` mayor que `0`, la extension
+esta inyectada y el worker del reproductor esta enganchado.
 
-**There are better / easier to use methods in the above recommendations.**
+### Notas
 
-- vaft - [userscript](https://github.com/pixeltris/TwitchAdSolutions/raw/master/vaft/vaft.user.js) / [ublock](https://raw.githubusercontent.com/pixeltris/TwitchAdSolutions/master/vaft/vaft-ublock-origin.js) / [ublock (permalink)](https://raw.githubusercontent.com/pixeltris/TwitchAdSolutions/f8f86706daf90daa534b26bce5b2f01238667d5f/vaft/vaft-ublock-origin.js)
-  - Attempts to get a clean stream as fast as it can
-  - If it fails to get a clean stream it removes ad segments (no playback until ad-free stream is found)
-- video-swap-new - [userscript](https://github.com/pixeltris/TwitchAdSolutions/raw/master/video-swap-new/video-swap-new.user.js) / [ublock](https://raw.githubusercontent.com/pixeltris/TwitchAdSolutions/master/video-swap-new/video-swap-new-ublock-origin.js) / [ublock (permalink)](https://raw.githubusercontent.com/pixeltris/TwitchAdSolutions/f8f86706daf90daa534b26bce5b2f01238667d5f/video-swap-new/video-swap-new-ublock-origin.js)
-  - Attempts to get a clean stream
-  - If it fails to get a clean stream it removes ad segments (no playback until ad-free stream is found)
-  - Not recommended, `vaft` is a better script
+- Usa la web de escritorio: `www.twitch.tv`.
+- `m.twitch.tv` no esta soportado por el script original.
+- No combines varios bloqueadores especificos de Twitch si ves buffering,
+  pantallas negras o recargas constantes.
+- Twitch cambia a menudo su reproductor y su sistema de anuncios, asi que esto
+  puede dejar de funcionar sin aviso.
 
-## Applying a script (uBlock Origin)
+## English
 
-- Navigate to the uBlock Origin Dashboard (the extension options)
-- Under the `My filters` tab add `twitch.tv##+js(twitch-videoad)`.
-- Under the `Settings` tab, enable `I am an advanced user`, then click the cog that appears. Modify the value of `userResourcesLocation` from `unset` to the full url of the solution you wish to use (if a url is already in use, add a space after the existing url). e.g. `userResourcesLocation https://raw.githubusercontent.com/pixeltris/TwitchAdSolutions/master/vaft/vaft-ublock-origin.js` 
-- To ensure uBlock Origin loads the script I recommend that you disable/enable the uBlock Origin extension (or restart your browser).
+### What This Is
 
-To stop using a script remove the filter and make the url `unset`.
+`Nigiriidesalmon Twitch VAFT` is a local Chrome MV3 extension wrapper around the
+archived upstream `vaft` script.
 
-*For the sake of security it's recommended to use a permalink when using uBlock Origin (permalinks do not auto update).*
+It includes:
 
-*The scripts __may randomly stop being applied by uBlock Origin__ for unknown reasons ([#200](https://github.com/pixeltris/TwitchAdSolutions/issues/200)). It's recommended to use the userscript versions instead.*
+- `vaft/vaft.user.js` injection at `document_start` in the page `MAIN` world.
+- A local Declarative Net Request rule blocking `edge.ads.twitch.tv/ads`.
+- Console diagnostics through `vaftLocalStatus()`.
+- Ad state logging through `VAFT ad state`.
 
-## Applying a script (userscript)
+### Chrome Installation
 
-Viewing one of the userscript files should prompt the given script to be added when you have a userscript manager installed.
+1. Open `chrome://extensions`.
+2. Enable `Developer mode`.
+3. Click `Load unpacked`.
+4. Select this repository folder.
+5. Open a live stream on `https://www.twitch.tv`.
+6. Open DevTools and look for `hookWorkerFetch (vaft)`.
+7. Run:
 
-Userscript managers:
+```js
+vaftLocalStatus()
+```
 
-- https://violentmonkey.github.io/
-- https://www.tampermonkey.net/
-- https://apps.apple.com/us/app/userscripts/id1463298887
+If you see `installed: true` and `hookedTwitchWorkerCount` above `0`, the
+extension is injected and the Twitch player worker has been hooked.
 
-*Greasemonkey doesn't work with the scripts.*
+### Notes
 
-## Issues with the scripts
+- Use the desktop site: `www.twitch.tv`.
+- `m.twitch.tv` is not supported by the original script.
+- Avoid combining multiple Twitch-specific ad blockers if you see buffering,
+  black screens, or repeated player reloads.
+- Twitch frequently changes its player and ad delivery, so this can break at
+  any time.
 
-If the script doesn't work or you're experiencing freezing / buffering issues see [issues.md](issues.md)
+## Project Layout
+
+```text
+manifest.json                 Chrome MV3 extension manifest
+rules/twitch-ads.json          Declarative Net Request rules
+vaft/vaft.user.js              VAFT userscript with local diagnostics
+README-LOCAL-EXTENSION.md      Short local install notes
+full-list.md                   Upstream list of Twitch ad solutions
+issues.md                      Upstream troubleshooting notes
+```
+
+## Attribution
+
+This fork is based on the archived `pixeltris/twitchadsolutions` project and the
+work credited in that repository. The original project was archived on
+2026-03-05.
+
+## Disclaimer
+
+This is an experimental local browser extension. Use it at your own risk.
+Streaming platforms may change behavior, block techniques, or apply their own
+terms of service.
