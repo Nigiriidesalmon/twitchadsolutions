@@ -1,43 +1,48 @@
-name: Create Release
+name: Build Release
 
 on:
   push:
-    branches:
-      - master
-    paths:
-      - "vaft/**"
-      - "video-swap-new/**"
+    tags:
+      - "v*"
 
 jobs:
-  create-release:
+  build-release:
     permissions:
       contents: write
-    name: Create Release
+    name: Package extension and create release
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - name: Set up Git user
+    - name: Verify manifest version
+      shell: bash
       run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        node --check vaft/vaft.user.js
+        node -e "JSON.parse(require('fs').readFileSync('rules/twitch-ads.json'))"
+        node tests/vaft-smoke.cjs
+        manifest_version=$(node -p "require('./manifest.json').version")
+        tag_version="${GITHUB_REF_NAME#v}"
+        test "$manifest_version" = "$tag_version"
 
-    - name: Set release notes
-      id: set-notes
+    - name: Package extension
+      shell: bash
       run: |
-        changes=$(git log -1 --pretty=format:%s)
-        echo "release_notes=$changes" >> $GITHUB_ENV
+        package_dir="dist/Nigiriidesalmon-Twitch-VAFT-${GITHUB_REF_NAME}"
+        mkdir -p "$package_dir/vaft" "$package_dir/rules"
+        cp manifest.json LICENSE README.md README-LOCAL-EXTENSION.md "$package_dir/"
+        cp vaft/vaft.user.js "$package_dir/vaft/"
+        cp rules/twitch-ads.json "$package_dir/rules/"
+        cd dist
+        zip -r "Nigiriidesalmon-Twitch-VAFT-${GITHUB_REF_NAME}.zip" "Nigiriidesalmon-Twitch-VAFT-${GITHUB_REF_NAME}"
 
-    - name: Create Release
-      id: create-release
-      uses: actions/create-release@v1
+    - name: Create GitHub release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: "v${{ github.run_number }}"
-        release_name: "Release v${{ github.run_number }}"
-        body: ${{ env.release_notes }}
-        draft: false
-        prerelease: false
+      shell: bash
+      run: |
+        gh release create "$GITHUB_REF_NAME" \
+          "dist/Nigiriidesalmon-Twitch-VAFT-${GITHUB_REF_NAME}.zip" \
+          --title "Nigiriidesalmon Twitch VAFT ${GITHUB_REF_NAME}" \
+          --generate-notes

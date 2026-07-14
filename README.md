@@ -1,12 +1,14 @@
 # Nigiriidesalmon Twitch VAFT
 
-Chrome Manifest V3 extension fork based on the archived
+Brave/Chrome Manifest V3 extension fork based on the archived
 [`pixeltris/twitchadsolutions`](https://github.com/pixeltris/twitchadsolutions)
 project.
 
 This fork packages the `vaft` script as a local unpacked Chrome extension, adds
 a Declarative Net Request rule for Twitch CSAI ad calls, and exposes small
 diagnostics helpers to verify whether the Twitch player worker was hooked.
+
+Current release: `0.2.0`.
 
 ## Espanol
 
@@ -21,10 +23,13 @@ Incluye:
 - Bloqueo local de llamadas CSAI a `edge.ads.twitch.tv/ads`.
 - Diagnostico desde consola con `vaftLocalStatus()`.
 - Indicador de estado de anuncios con logs `VAFT ad state`.
+- Limpieza de workers terminados y hooks de red compatibles con `Headers` y
+  `Request`.
+- Permisos limitados a `www.twitch.tv` y al endpoint publicitario bloqueado.
 
-### Instalacion en Chrome
+### Instalacion en Brave o Chrome
 
-1. Abre `chrome://extensions`.
+1. Abre `brave://extensions` o `chrome://extensions`.
 2. Activa `Developer mode`.
 3. Pulsa `Load unpacked`.
 4. Selecciona la carpeta del repo.
@@ -36,8 +41,9 @@ Incluye:
 vaftLocalStatus()
 ```
 
-Si ves `installed: true` y `hookedTwitchWorkerCount` mayor que `0`, la extension
-esta inyectada y el worker del reproductor esta enganchado.
+Si ves `installed: true`, `buildVersion: "0.2.0"` y
+`hookedTwitchWorkerCount` mayor que `0`, la extension esta inyectada y el worker
+del reproductor esta enganchado.
 
 ### Notas
 
@@ -61,10 +67,13 @@ It includes:
 - A local Declarative Net Request rule blocking `edge.ads.twitch.tv/ads`.
 - Console diagnostics through `vaftLocalStatus()`.
 - Ad state logging through `VAFT ad state`.
+- Cleanup for terminated workers and network hooks compatible with `Headers`
+  and `Request`.
+- Permissions limited to `www.twitch.tv` and the blocked ad endpoint.
 
-### Chrome Installation
+### Brave or Chrome Installation
 
-1. Open `chrome://extensions`.
+1. Open `brave://extensions` or `chrome://extensions`.
 2. Enable `Developer mode`.
 3. Click `Load unpacked`.
 4. Select this repository folder.
@@ -76,8 +85,9 @@ It includes:
 vaftLocalStatus()
 ```
 
-If you see `installed: true` and `hookedTwitchWorkerCount` above `0`, the
-extension is injected and the Twitch player worker has been hooked.
+If you see `installed: true`, `buildVersion: "0.2.0"`, and
+`hookedTwitchWorkerCount` above `0`, the extension is injected and the Twitch
+player worker has been hooked.
 
 ### Notes
 
@@ -94,10 +104,16 @@ extension is injected and the Twitch player worker has been hooked.
 manifest.json                 Chrome MV3 extension manifest
 rules/twitch-ads.json          Declarative Net Request rules
 vaft/vaft.user.js              VAFT userscript with local diagnostics
+tests/vaft-smoke.cjs            Network and worker hook smoke tests
 README-LOCAL-EXTENSION.md      Short local install notes
 full-list.md                   Upstream list of Twitch ad solutions
 issues.md                      Upstream troubleshooting notes
 ```
+
+## Releases
+
+Release ZIPs are built automatically when a version tag matching the manifest
+is pushed. For example, `manifest.json` version `0.2.0` must use tag `v0.2.0`.
 
 ## Attribution
 

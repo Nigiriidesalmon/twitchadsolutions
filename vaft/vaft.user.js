@@ -1,18 +1,19 @@
 // ==UserScript==
-// @name         TwitchAdSolutions (vaft)
-// @namespace    https://github.com/pixeltris/TwitchAdSolutions
-// @version      37.0.0
-// @description  Multiple solutions for blocking Twitch ads (vaft)
-// @updateURL    https://github.com/pixeltris/TwitchAdSolutions/raw/master/vaft/vaft.user.js
-// @downloadURL  https://github.com/pixeltris/TwitchAdSolutions/raw/master/vaft/vaft.user.js
+// @name         Nigiriidesalmon Twitch VAFT
+// @namespace    https://github.com/Nigiriidesalmon/twitchadsolutions
+// @version      0.2.0
+// @description  Local Twitch VAFT fork with Chrome MV3 packaging and diagnostics
+// @updateURL    https://github.com/Nigiriidesalmon/twitchadsolutions/raw/master/vaft/vaft.user.js
+// @downloadURL  https://github.com/Nigiriidesalmon/twitchadsolutions/raw/master/vaft/vaft.user.js
 // @author       https://github.com/cleanlock/VideoAdBlockForTwitch#credits
-// @match        *://*.twitch.tv/*
+// @match        https://www.twitch.tv/*
 // @run-at       document-start
 // @inject-into  page
 // @grant        none
 // ==/UserScript==
 (function() {
     'use strict';
+    const localBuildVersion = '0.2.0';
     const ourTwitchAdSolutionsVersion = 24;// Used to prevent conflicts with outdated versions of the scripts
     if (typeof window.twitchAdSolutionsVersion !== 'undefined' && window.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log("skipping vaft as there's another script active. ourVersion:" + ourTwitchAdSolutionsVersion + " activeVersion:" + window.twitchAdSolutionsVersion);
@@ -37,8 +38,8 @@
         scope.PlayerReloadMinimalRequestsTime = 1500;
         scope.PlayerReloadMinimalRequestsPlayerIndex = 2;//autoplay
         scope.HasTriggeredPlayerReload = false;
-        scope.StreamInfos = [];
-        scope.StreamInfosByUrl = [];
+        scope.StreamInfos = Object.create(null);
+        scope.StreamInfosByUrl = Object.create(null);
         scope.GQLDeviceID = null;
         scope.ClientVersion = null;
         scope.ClientSession = null;
@@ -62,8 +63,9 @@
     let lastAdBlockBannerData = null;
     let lastAdBlockBannerSummary = '';
     let localStorageHookFailed = false;
-    const twitchWorkers = [];
+    const twitchWorkers = new Set();
     let hookedTwitchWorkerCount = 0;
+    let originalWindowFetch = null;
     const workerStringConflicts = [
         'twitch',
         'isVariantA'// TwitchNoSub
@@ -125,9 +127,14 @@
         const reinsert = getWorkersForReinsert(window.Worker);
         const newWorker = class Worker extends getCleanWorker(window.Worker) {
             constructor(twitchBlobUrl, options) {
+                const twitchWorkerUrl = String(twitchBlobUrl);
                 let isTwitchWorker = false;
                 try {
-                    isTwitchWorker = new URL(twitchBlobUrl).origin.endsWith('.twitch.tv');
+                    const workerUrl = new URL(twitchWorkerUrl);
+                    const workerHostname = workerUrl.protocol === 'blob:'
+                        ? new URL(workerUrl.origin).hostname
+                        : workerUrl.hostname;
+                    isTwitchWorker = workerHostname === 'twitch.tv' || workerHostname.endsWith('.twitch.tv');
                 } catch {}
                 if (!isTwitchWorker) {
                     super(twitchBlobUrl, options);
@@ -146,27 +153,30 @@
                     ${getWasmWorkerJs.toString()}
                     ${getServerTimeFromM3u8.toString()}
                     ${replaceServerTimeInM3u8.toString()}
-                    const workerString = getWasmWorkerJs('${twitchBlobUrl.replaceAll("'", "%27")}');
+                    const workerString = getWasmWorkerJs(${JSON.stringify(twitchWorkerUrl)});
                     declareOptions(self);
-                    GQLDeviceID = ${GQLDeviceID ? "'" + GQLDeviceID + "'" : null};
-                    AuthorizationHeader = ${AuthorizationHeader ? "'" + AuthorizationHeader + "'" : undefined};
-                    ClientIntegrityHeader = ${ClientIntegrityHeader ? "'" + ClientIntegrityHeader + "'" : null};
-                    ClientVersion = ${ClientVersion ? "'" + ClientVersion + "'" : null};
-                    ClientSession = ${ClientSession ? "'" + ClientSession + "'" : null};
+                    GQLDeviceID = ${JSON.stringify(GQLDeviceID)};
+                    AuthorizationHeader = ${JSON.stringify(AuthorizationHeader)};
+                    ClientIntegrityHeader = ${JSON.stringify(ClientIntegrityHeader)};
+                    ClientVersion = ${JSON.stringify(ClientVersion)};
+                    ClientSession = ${JSON.stringify(ClientSession)};
                     self.addEventListener('message', function(e) {
-                        if (e.data.key == 'UpdateClientVersion') {
+                        if (!e.data || typeof e.data !== 'object') {
+                            return;
+                        }
+                        if (e.data.key === 'UpdateClientVersion') {
                             ClientVersion = e.data.value;
-                        } else if (e.data.key == 'UpdateClientSession') {
+                        } else if (e.data.key === 'UpdateClientSession') {
                             ClientSession = e.data.value;
-                        } else if (e.data.key == 'UpdateClientId') {
+                        } else if (e.data.key === 'UpdateClientId') {
                             ClientID = e.data.value;
-                        } else if (e.data.key == 'UpdateDeviceId') {
+                        } else if (e.data.key === 'UpdateDeviceId') {
                             GQLDeviceID = e.data.value;
-                        } else if (e.data.key == 'UpdateClientIntegrityHeader') {
+                        } else if (e.data.key === 'UpdateClientIntegrityHeader') {
                             ClientIntegrityHeader = e.data.value;
-                        } else if (e.data.key == 'UpdateAuthorizationHeader') {
+                        } else if (e.data.key === 'UpdateAuthorizationHeader') {
                             AuthorizationHeader = e.data.value;
-                        } else if (e.data.key == 'FetchResponse') {
+                        } else if (e.data.key === 'FetchResponse') {
                             const responseData = e.data.value;
                             if (pendingFetchRequests.has(responseData.id)) {
                                 const { resolve, reject } = pendingFetchRequests.get(responseData.id);
@@ -183,12 +193,12 @@
                                     resolve(response);
                                 }
                             }
-                        } else if (e.data.key == 'TriggeredPlayerReload') {
+                        } else if (e.data.key === 'TriggeredPlayerReload') {
                             HasTriggeredPlayerReload = true;
-                        } else if (e.data.key == 'SimulateAds') {
+                        } else if (e.data.key === 'SimulateAds') {
                             SimulatedAdsDepth = e.data.value;
                             console.log('SimulatedAdsDepth: ' + SimulatedAdsDepth);
-                        } else if (e.data.key == 'AllSegmentsAreAdSegments') {
+                        } else if (e.data.key === 'AllSegmentsAreAdSegments') {
                             AllSegmentsAreAdSegments = !AllSegmentsAreAdSegments;
                             console.log('AllSegmentsAreAdSegments: ' + AllSegmentsAreAdSegments);
                         }
@@ -196,28 +206,39 @@
                     hookWorkerFetch();
                     eval(workerString);
                 `;
-                super(URL.createObjectURL(new Blob([newBlobStr])), options);
-                twitchWorkers.push(this);
+                const replacementWorkerUrl = URL.createObjectURL(new Blob([newBlobStr]));
+                super(replacementWorkerUrl, options);
+                URL.revokeObjectURL(replacementWorkerUrl);
+                twitchWorkers.add(this);
                 hookedTwitchWorkerCount++;
                 this.addEventListener('message', (e) => {
-                    if (e.data.key == 'UpdateAdBlockBanner') {
+                    if (!e.data || typeof e.data !== 'object') {
+                        return;
+                    }
+                    if (e.data.key === 'UpdateAdBlockBanner') {
                         updateAdblockBanner(e.data);
-                    } else if (e.data.key == 'PauseResumePlayer') {
+                    } else if (e.data.key === 'PauseResumePlayer') {
                         doTwitchPlayerTask(true, false);
-                    } else if (e.data.key == 'ReloadPlayer') {
+                    } else if (e.data.key === 'ReloadPlayer') {
                         doTwitchPlayerTask(false, true);
                     }
                 });
                 this.addEventListener('message', async event => {
-                    if (event.data.key == 'FetchRequest') {
+                    if (event.data?.key === 'FetchRequest') {
                         const fetchRequest = event.data.value;
                         const responseData = await handleWorkerFetchRequest(fetchRequest);
-                        this.postMessage({
-                            key: 'FetchResponse',
-                            value: responseData
-                        });
+                        if (twitchWorkers.has(this)) {
+                            this.postMessage({
+                                key: 'FetchResponse',
+                                value: responseData
+                            });
+                        }
                     }
                 });
+            }
+            terminate() {
+                twitchWorkers.delete(this);
+                return super.terminate();
             }
         };
         let workerInstance = reinsertWorkers(newWorker, reinsert);
@@ -791,6 +812,7 @@
             isStrippingAdSegments: !!data.isStrippingAdSegments,
             numStrippedAdSegments: data.numStrippedAdSegments || 0
         };
+        isActivelyStrippingAds = lastAdBlockBannerData.isStrippingAdSegments;
         const nextSummary = JSON.stringify(lastAdBlockBannerData);
         if (nextSummary !== lastAdBlockBannerSummary) {
             lastAdBlockBannerSummary = nextSummary;
@@ -809,7 +831,6 @@
                 playerRootDiv.appendChild(adBlockDiv);
             }
             if (adBlockDiv != null) {
-                isActivelyStrippingAds = data.isStrippingAdSegments;
                 adBlockDiv.P.textContent = 'Blocking' + (data.isMidroll ? ' midroll' : '') + ' ads' + (data.isStrippingAdSegments ? ' (stripping)' : '');// + (data.numStrippedAdSegments > 0 ? ` (${data.numStrippedAdSegments})` : '');
                 adBlockDiv.style.display = data.hasAds && playerBufferState.isLive ? 'block' : 'none';
             }
@@ -931,13 +952,14 @@
     };
     window.vaftLocalStatus = () => ({
         script: 'vaft',
+        buildVersion: localBuildVersion,
         version: ourTwitchAdSolutionsVersion,
         installed: true,
         host: window.location.hostname,
         isMobileHost: window.location.hostname === 'm.twitch.tv',
-        supportedHost: window.location.hostname !== 'm.twitch.tv',
+        supportedHost: window.location.hostname === 'www.twitch.tv',
         hookedTwitchWorkerCount,
-        workerInstances: twitchWorkers.length,
+        workerInstances: twitchWorkers.size,
         isActivelyStrippingAds,
         lastAdBlockBannerData,
         localStorageHookFailed,
@@ -949,12 +971,16 @@
     });
     function postTwitchWorkerMessage(key, value) {
         twitchWorkers.forEach((worker) => {
-            worker.postMessage({key: key, value: value});
+            try {
+                worker.postMessage({key: key, value: value});
+            } catch {
+                twitchWorkers.delete(worker);
+            }
         });
     }
     async function handleWorkerFetchRequest(fetchRequest) {
         try {
-            const response = await window.realFetch(fetchRequest.url, fetchRequest.options);
+            const response = await originalWindowFetch(fetchRequest.url, fetchRequest.options);
             const responseBody = await response.text();
             const responseObject = {
                 id: fetchRequest.id,
@@ -971,60 +997,92 @@
             };
         }
     }
+    function getHeaderValue(headers, name) {
+        if (!headers) {
+            return null;
+        }
+        try {
+            return new Headers(headers).get(name);
+        } catch {
+            return null;
+        }
+    }
+    function getRequestUrl(input) {
+        if (typeof input === 'string') {
+            return input;
+        }
+        if (input instanceof URL) {
+            return input.href;
+        }
+        if (typeof Request !== 'undefined' && input instanceof Request) {
+            return input.url;
+        }
+        return '';
+    }
+    function isTwitchGqlRequest(input) {
+        try {
+            return new URL(getRequestUrl(input), window.location.href).hostname === 'gql.twitch.tv';
+        } catch {
+            return false;
+        }
+    }
     function hookFetch() {
         const realFetch = window.fetch;
-        window.realFetch = realFetch;
+        originalWindowFetch = realFetch;
         window.fetch = function(url, init, ...args) {
-            if (typeof url === 'string') {
-                if (url.includes('gql')) {
-                    let deviceId = init.headers['X-Device-Id'];
-                    if (typeof deviceId !== 'string') {
-                        deviceId = init.headers['Device-ID'];
-                    }
-                    if (typeof deviceId === 'string' && GQLDeviceID != deviceId) {
-                        GQLDeviceID = deviceId;
-                        postTwitchWorkerMessage('UpdateDeviceId', GQLDeviceID);
-                    }
-                    if (typeof init.headers['Client-Version'] === 'string' && init.headers['Client-Version'] !== ClientVersion) {
-                        postTwitchWorkerMessage('UpdateClientVersion', ClientVersion = init.headers['Client-Version']);
-                    }
-                    if (typeof init.headers['Client-Session-Id'] === 'string' && init.headers['Client-Session-Id'] !== ClientSession) {
-                        postTwitchWorkerMessage('UpdateClientSession', ClientSession = init.headers['Client-Session-Id']);
-                    }
-                    if (typeof init.headers['Client-Integrity'] === 'string' && init.headers['Client-Integrity'] !== ClientIntegrityHeader) {
-                        postTwitchWorkerMessage('UpdateClientIntegrityHeader', ClientIntegrityHeader = init.headers['Client-Integrity']);
-                    }
-                    if (typeof init.headers['Authorization'] === 'string' && init.headers['Authorization'] !== AuthorizationHeader) {
-                        postTwitchWorkerMessage('UpdateAuthorizationHeader', AuthorizationHeader = init.headers['Authorization']);
-                    }
-                    // Get rid of mini player above chat - TODO: Reject this locally instead of having server reject it
-                    if (init && typeof init.body === 'string' && init.body.includes('PlaybackAccessToken') && init.body.includes('picture-by-picture')) {
-                        init.body = '';
-                    }
-                    if (ForceAccessTokenPlayerType && typeof init.body === 'string' && init.body.includes('PlaybackAccessToken')) {
+            let nextInit = init;
+            if (isTwitchGqlRequest(url)) {
+                const requestHeaders = init?.headers || (typeof Request !== 'undefined' && url instanceof Request ? url.headers : null);
+                let deviceId = getHeaderValue(requestHeaders, 'X-Device-Id') || getHeaderValue(requestHeaders, 'Device-ID');
+                if (typeof deviceId === 'string' && GQLDeviceID !== deviceId) {
+                    GQLDeviceID = deviceId;
+                    postTwitchWorkerMessage('UpdateDeviceId', GQLDeviceID);
+                }
+                const clientVersion = getHeaderValue(requestHeaders, 'Client-Version');
+                if (typeof clientVersion === 'string' && clientVersion !== ClientVersion) {
+                    postTwitchWorkerMessage('UpdateClientVersion', ClientVersion = clientVersion);
+                }
+                const clientSession = getHeaderValue(requestHeaders, 'Client-Session-Id');
+                if (typeof clientSession === 'string' && clientSession !== ClientSession) {
+                    postTwitchWorkerMessage('UpdateClientSession', ClientSession = clientSession);
+                }
+                const clientIntegrity = getHeaderValue(requestHeaders, 'Client-Integrity');
+                if (typeof clientIntegrity === 'string' && clientIntegrity !== ClientIntegrityHeader) {
+                    postTwitchWorkerMessage('UpdateClientIntegrityHeader', ClientIntegrityHeader = clientIntegrity);
+                }
+                const authorization = getHeaderValue(requestHeaders, 'Authorization');
+                if (typeof authorization === 'string' && authorization !== AuthorizationHeader) {
+                    postTwitchWorkerMessage('UpdateAuthorizationHeader', AuthorizationHeader = authorization);
+                }
+                const requestBody = typeof init?.body === 'string' ? init.body : null;
+                // Get rid of mini player above chat - TODO: Reject this locally instead of having server reject it
+                if (requestBody?.includes('PlaybackAccessToken') && requestBody.includes('picture-by-picture')) {
+                    nextInit = {...init, body: ''};
+                } else if (ForceAccessTokenPlayerType && requestBody?.includes('PlaybackAccessToken')) {
+                    try {
                         let replacedPlayerType = '';
-                        const newBody = JSON.parse(init.body);
+                        const newBody = JSON.parse(requestBody);
                         if (Array.isArray(newBody)) {
                             for (let i = 0; i < newBody.length; i++) {
-                                if (newBody[i]?.variables?.playerType && newBody[i]?.variables?.playerType !== ForceAccessTokenPlayerType) {
+                                if (newBody[i]?.variables?.playerType && newBody[i].variables.playerType !== ForceAccessTokenPlayerType) {
                                     replacedPlayerType = newBody[i].variables.playerType;
                                     newBody[i].variables.playerType = ForceAccessTokenPlayerType;
                                 }
                             }
-                        } else {
-                            if (newBody?.variables?.playerType && newBody?.variables?.playerType !== ForceAccessTokenPlayerType) {
-                                replacedPlayerType = newBody.variables.playerType;
-                                newBody.variables.playerType = ForceAccessTokenPlayerType;
-                            }
+                        } else if (newBody?.variables?.playerType && newBody.variables.playerType !== ForceAccessTokenPlayerType) {
+                            replacedPlayerType = newBody.variables.playerType;
+                            newBody.variables.playerType = ForceAccessTokenPlayerType;
                         }
                         if (replacedPlayerType) {
                             console.log(`Replaced '${replacedPlayerType}' player type with '${ForceAccessTokenPlayerType}' player type`);
-                            init.body = JSON.stringify(newBody);
+                            nextInit = {...init, body: JSON.stringify(newBody)};
                         }
+                    } catch (error) {
+                        console.warn('VAFT could not parse a PlaybackAccessToken request', error);
                     }
                 }
             }
-            return realFetch.apply(this, arguments);
+            return realFetch.call(this, url, nextInit, ...args);
         };
     }
     function onContentLoaded() {

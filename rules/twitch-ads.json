@@ -8,11 +8,7 @@
     "condition": {
       "urlFilter": "||edge.ads.twitch.tv/ads",
       "resourceTypes": [
-        "xmlhttprequest",
-        "script",
-        "media",
-        "sub_frame",
-        "other"
+        "xmlhttprequest"
       ]
     }
   }

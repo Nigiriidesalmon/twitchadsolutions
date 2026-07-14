@@ -1,0 +1,20 @@
+name: Validate Extension
+
+on: [push, pull_request]
+
+jobs:
+  validate:
+    name: Validate extension files and VAFT hooks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run checks
+      shell: bash
+      run: |
+        node --check vaft/vaft.user.js
+        node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
+        node -e "JSON.parse(require('fs').readFileSync('rules/twitch-ads.json'))"
+        node tests/vaft-smoke.cjs

@@ -1,16 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Nigiriidesalmon Twitch VAFT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Nigiriidesalmon's local Twitch player cleanup fork based on the archived pixeltris/twitchadsolutions VAFT script.",
   "minimum_chrome_version": "102",
   "permissions": [
-    "declarativeNetRequest"
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
-    "*://*.twitch.tv/*",
-    "https://gql.twitch.tv/*",
-    "https://usher.ttvnw.net/*",
     "https://edge.ads.twitch.tv/*"
   ],
   "declarative_net_request": {
@@ -22,20 +19,10 @@
       }
     ]
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "vaft/vaft.user.js"
-      ],
-      "matches": [
-        "*://*.twitch.tv/*"
-      ]
-    }
-  ],
   "content_scripts": [
     {
       "matches": [
-        "*://*.twitch.tv/*"
+        "https://www.twitch.tv/*"
       ],
       "js": [
         "vaft/vaft.user.js"
